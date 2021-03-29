@@ -8,7 +8,10 @@ player = MIDIplayer.Player(name="redbone", bpm=81, to_port=True)
 
 Ebm = MIDIplayer.Chord(Eb, "minor")
 
-for i in range(0, 6):
+for i in range(0, 2):
+
+	player.log("{}".format(i))
+
 	player.play_chord(MIDIplayer.Chord(B), 2, 64, 2)
 	player.play_chord(MIDIplayer.Chord(Db), 3, 64, 3/2)
 	player.play_chord(Ebm, 3, 64, 4)

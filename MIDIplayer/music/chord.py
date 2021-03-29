@@ -9,7 +9,7 @@ class Chord(object):
         self.intervals = self.get_intervals()
 
     # TODO: Função para alterar/add/rem notas do acorde
-    # pq depois tem q chamar a get intervals de novo
+    # pq depois tem q chamar a get intervals de novoz
 
     # TODO: tratar acordes extendidos e inversões
 

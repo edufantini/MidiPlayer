@@ -26,6 +26,8 @@ class Player(object):
 
 		self.logs = []
 
+		self.to_port = to_port
+
 		self.console.rule("[bold green] Initializing player [/]")
 
 		# file declaration
@@ -69,57 +71,71 @@ class Player(object):
 		if to_port:
 			outs = mido.get_output_names()
 
-			table = Table(title="[yellow]Available output ports")
+			table = Table(title="\n[yellow]Available output ports")
 			table.add_column("#", style="green bold", justify="left")
 			table.add_column("Outport name", style="white", justify="center")
 			for id, port in enumerate(outs):
 				table.add_row(str(id), port)
 
-			self.console.print(table)
-			i = int(self.console.input("Select by output id: [yellow bold]#"))
+			self.console.print(table, justify="center")
+			i = int(self.console.input("\t\t\t ➜ Select by output id: [yellow bold]# "))
 			self.out_port = mido.open_output(outs[i])
-			self.log("\t➜ Selected out port: \n\t\t[bold green]{}[/]".format(self.out_port))
+			self.log("\n\t\t ➜ Selected out port: \n\t\t[bold green]{}[/]\n".format(self.out_port.name))
 
 		#
 		#               DONE
 		#
 
-		self.console.print("\n[bold green][✓] Player created [/]", justify="center")
 		self.console.rule("")
-		self.console.input("\n\n[bold] Press any key to go on... [/]")
+		self.console.print("[bold green][✓] Player created [/]", justify="center")
+		self.console.rule("")
+		self.console.print("[bold] Press enter to start", justify="center")
+		self.console.input()
+		self.console.rule("")
 
 	def set_time_signature(self, time_signature):
 		self.time_signature = time_signature
 		self.history.append(self.time_signature.get())
 		self.log("\t➜ Time Signature set to {}".format(str(self.time_signature)))
 
-	def start_msg(midi_val):
-		msg = mido.Message('note_on', velocity=velocity, note=midi_val)
+	def start_msg(self, msg):
 		self.out_port.send(msg)
-		self.log("\t➜ Message '{}' sent to port '{}'".format(msg, self.out_port))
+		# self.log("\n\n\t➜ Message '{}' sent to port '{}'".format(msg, self.out_port))
+		self.log("\t➜ Message '{}' sent to port".format(msg))
 
-	def stop_msg(midi_val):
-		self.out_port.send(mido.Message('note_on', velocity=0, note=midi_val))
-		self.log("\t➜ Message '{}' sent to port '{}'".format(msg, self.out_port))
+	def stop_msg(self, msg):
+		msg.velocity = 0
+		self.out_port.send(msg)
+		# self.log("\n\n\t➜ Message '{}' sent to port '{}'".format(msg, self.out_port))
+		self.log("\t➜ Message '{}' sent to port".format(msg))
+
+	def play_rest(self, duration):
+		dur_ticks = duration*self.resolution
+		delta_t = mido.tick2second(dur_ticks, self.resolution, self.tempo)
+		self.log("\t➜ Resting for {} seconds".format(str(delta_t)))
+		sleep(delta_t)
+
 
 	def play_note(self, note, octave, velocity, duration, now=False):
 
 		midi_val = note.get_midi_val(octave)
 		dur_ticks = duration*self.resolution
+		msg = mido.Message('note_on', velocity=velocity, note=midi_val)
 
-		if self.out_port:
+		if self.out_port != None:
 			# turn on
-			start_msg(midi_val)
+			self.start_msg(msg)
 
 			if not now:
 				# wait duration
 				delta_t = mido.tick2second(dur_ticks, self.resolution, self.tempo)
+
 				self.log("\t➜ Sleeping for {} seconds".format(str(delta_t)))
 				sleep(delta_t)
 				# trocar sleep por await
 
 			# turn off
-			stop_msg(midi_val)
+			self.stop_msg(msg)
 
 		self.history.append(mido.Message('note_on', velocity=velocity, note=midi_val))
 		self.history.append(mido.Message('note_on', velocity=0, note=midi_val, time=int(dur_ticks)))
@@ -131,16 +147,15 @@ class Player(object):
 		# )
 
 	def play_chord(self, chord, octave, velocity, duration=4):
+
 		curr_note = chord.root
 		intervals = chord.intervals
-		# print(intervals)
-
-		# print(root)
 
 		notes2play = []
 
 		next_octave = False
 		notes2play.append(curr_note)
+
 		# caminhada pelo grafo para tocar acorde
 		for interval in intervals:
 			# print(interv        root = curr_noteal)
@@ -163,39 +178,49 @@ class Player(object):
 				midi_list.append(note.get_midi_val(octave))
 
 		dur_ticks = duration*self.resolution
+		delta_t = mido.tick2second(dur_ticks, self.resolution, self.tempo)
 
-		if self.out_port:
-			for val in midi_list:
-				msg = mido.Message('note_on', velocity=velocity, note=val)
-				self.out_port.send(msg)
-				self.log("\t➜ Message '{}' sent to port '{}'".format(msg, self.out_port))
+		#
+		#		PLAY CHORD NOTES
+		#
 
-			# wait duration
-			delta_t = mido.tick2second(dur_ticks, self.resolution, self.tempo)
-			self.log("\t➜ Sleeping for {} seconds".format(str(delta_t)))
-			sleep(delta_t)
+		for val in midi_list:
 
-			# turn off
-			for val in midi_list:
-				msg = mido.Message('note_on', velocity=0, note=val)
-				self.out_port.send(msg)
-				self.log("\t➜ Message '{}' sent to port '{}'".format(msg, self.out_port))
+			msg = mido.Message('note_on', velocity=velocity, note=val)
+			self.history.append(msg)
+			# self.log("\t➜ Message '{}' added to history".format(msg))
+
+			if self.out_port != None:
+				self.start_msg(msg)
+
+
+		#
+		#		WAIT CHORD DURATION
+		#
+
+		self.log("\t➜ Sleeping for {} seconds\n".format(str(delta_t)))
+		sleep(delta_t)
+
+		#
+		#		STOP CHORD NOTES
+		#
 
 		for val in midi_list:
 			msg = mido.Message('note_on', velocity=velocity, note=val)
-			self.history.append(msg)
-			self.log("\t➜ Message '{}' added to history".format(msg))
-		for val in midi_list:
 			self.history.append(mido.Message('note_on', velocity=0, note=val, time=int(dur_ticks)))
+
+			if self.out_port != None:
+				self.stop_msg(msg)
+
 
 	def save_file(self):
 
 		self.console.log(self.history)
 
-		for track in self.file.tracks:
-			for msg in self.history:
-				track.append(msg)
-				self.log("\t➜ Message '{}' added to track '{}'".format(msg, self.filename))
+		# for track in self.file.tracks:
+		# 	for msg in self.history:
+		# 		track.append(msg)
+		# 		self.log("\t➜ Message '{}' added to track '{}'".format(msg, self.filename))
 
 		self.file.save(self.filename)
 		self.log("[bold green] [✓] Mid file {} saved [/bold green]".format(self.filename))
