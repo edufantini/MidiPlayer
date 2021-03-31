@@ -4,25 +4,31 @@ import MIDIplayer
 import rich
 from MIDIplayer import B, Db, Eb
 
-player = MIDIplayer.Player(name="redbone", bpm=81, to_port=True)
+#
+#	Iniciando o Player
+#
 
-Ebm = MIDIplayer.Chord(Eb, "minor")
+player = MIDIplayer.Player(name="redbone by childish gambino", bpm=81, to_port=True)
 
-for i in range(0, 2):
+#
+#	Definindo acordes
+#
 
-	player.log("{}".format(i))
+c_B = MIDIplayer.Chord(B)
+c_Db = MIDIplayer.Chord(Db)
+c_Ebm = MIDIplayer.Chord(Eb, "minor")
 
-	player.play_chord(MIDIplayer.Chord(B), 2, 64, 2)
-	player.play_chord(MIDIplayer.Chord(Db), 3, 64, 3/2)
-	player.play_chord(Ebm, 3, 64, 4)
+#
+#	Toca as coisa
+#
 
-# player.play_note(B, 4, 64, 2)
-# player.play_note(Db, 4, 64, 3/2)
-# player.play_note(Eb, 4, 64, 9/2)
+for i in range(1, 3):
+
+	player.log("{}a vez".format(str(i)))
+	# play_chord(acorde, oitava, força, duração)
+	player.play_chord(c_B, 2, 64, 2)
+	player.play_chord(c_Db, 3, 64, 3/2)
+	player.play_chord(c_Ebm, 3, 64, 4)
+
 
 player.save_file()
-
-
-# player.console.print(player.graph.out_edges(data=True))
-# nx.draw_circular(G)
-# plt.show()
