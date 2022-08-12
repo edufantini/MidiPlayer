@@ -1,4 +1,5 @@
 import mido
+from ..music.score import NotationType as nt
 from ..music import Music
 from ..music.time.time_signature import TimeSignature
 from time import sleep
@@ -8,6 +9,7 @@ from rich.console import Console
 from rich.text import Text
 from rich.traceback import install
 from rich.table import Table
+from threading import Timer, Thread
 
 install()
 pretty.install()
@@ -120,6 +122,7 @@ class Player(object):
 
 		midi_val = note.get_midi_val(octave)
 		dur_ticks = duration*self.resolution
+		delta_t = mido.tick2second(dur_ticks, self.resolution, self.tempo)
 		msg = mido.Message('note_on', velocity=velocity, note=midi_val)
 
 		if self.out_port != None:
@@ -128,14 +131,15 @@ class Player(object):
 
 			if not now:
 				# wait duration
-				delta_t = mido.tick2second(dur_ticks, self.resolution, self.tempo)
-
 				self.log("\t➜ Sleeping for {} seconds".format(str(delta_t)))
 				sleep(delta_t)
 				# trocar sleep por await
 
-			# turn off
-			self.stop_msg(msg)
+				# turn off
+				self.stop_msg(msg)
+			else:
+				Timer(delta_t, self.stop_msg, (msg,)).start()
+
 
 		self.history.append(mido.Message('note_on', velocity=velocity, note=midi_val))
 		self.history.append(mido.Message('note_on', velocity=0, note=midi_val, time=int(dur_ticks)))
@@ -146,7 +150,7 @@ class Player(object):
 		#     + ": " + str(midival)
 		# )
 
-	def play_chord(self, chord, octave, velocity, duration=4):
+	def play_chord(self, chord, octave, velocity, duration=4, now=False):
 
 		curr_note = chord.root
 		intervals = chord.intervals
@@ -198,8 +202,9 @@ class Player(object):
 		#		WAIT CHORD DURATION
 		#
 
-		self.log("\t➜ Sleeping for {} seconds\n".format(str(delta_t)))
-		sleep(delta_t)
+		if not now:
+			self.log("\t➜ Sleeping for {} seconds\n".format(str(delta_t)))
+			sleep(delta_t)
 
 		#
 		#		STOP CHORD NOTES
@@ -210,9 +215,40 @@ class Player(object):
 			self.history.append(mido.Message('note_on', velocity=0, note=val, time=int(dur_ticks)))
 
 			if self.out_port != None:
-				self.stop_msg(msg)
+				if not now:
+					self.stop_msg(msg)
+				else:
+					Timer(delta_t, self.stop_msg, (msg,)).start()
 
+	
+	def play_score(self, score):
+		relpos = 0
+		# go through all positions 
+		while (relpos < score.get_duration()):
+			# go through all instruments 
+			for i in range(score.get_instrument_count()):
+				notations = score.get_notations_in_relpos(i, relpos)
 
+				if notations != None:
+					# go through all notations 
+					for notation in notations:
+
+						key = notation.get_key()
+						octave = notation.get_octave()
+						velocity = notation.get_velocity()
+						duration = notation.get_duration()
+
+						# play notes in that notation
+						if notation.get_type() == nt.NOTE:
+							self.play_note(key, octave, velocity, duration, True)
+						elif notation.get_type() == nt.CHORD:
+							self.play_chord(key, octave, velocity, duration, True)							
+
+			# advance in the score
+			relpos += 1
+			self.play_rest(score.get_res())
+			
+		
 	def save_file(self):
 
 		self.console.log(self.history)
